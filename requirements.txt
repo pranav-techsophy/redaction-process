@@ -1,0 +1,17 @@
+zipfile
+os
+shutil
+re
+sys
+traceback
+pytesseract
+re
+os
+shutil
+PyPDF2
+fitz
+PyMuPDF  
+pytesseract
+PIL   
+Image
+traceback
