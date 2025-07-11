@@ -6,16 +6,11 @@ import shutil
 import fitz  # PyMuPDF
 import pytesseract
 from PIL import Image
-import docx
 import PyPDF2
 
 REDACTION_PATTERNS = [
     "Ref",
     "Use of UpToDate is subject to the Terms of Use",
-    "2025© UpToDate, Inc. and its affiliates and/or licensors. All Rights Reserved",
-    'show table',
-    'Contributor Disclosures',
-    "For abbreviations, symbols, and age group definitions",
     "Use of UpToDate is subject to the Terms of Us\"", # Typo here, kept as provided
     # General citation-like patterns, often found in medical docs
     re.compile(r"\b\([A-Za-z]+\s+\d{4}(?:[,;]\s*[A-Za-z]+\s+\d{4})*\)\b", re.IGNORECASE | re.UNICODE),
@@ -24,7 +19,6 @@ REDACTION_PATTERNS = [
     re.compile(r"AUTHORS:.*?(?:\n|$)", re.IGNORECASE),
     re.compile(r"SECTION EDITOR:.*?(?:\n|$)", re.IGNORECASE),
     re.compile(r"DEPUTY EDITOR:.*?(?:\n|$)", re.IGNORECASE),
-    re.compile(r"CONTRIBUTOR DISCLOSURES.*?(?:\n|$)", re.IGNORECASE),
     re.compile(r"INTRODUCTION.*?(?:\n|$)", re.IGNORECASE),
     re.compile(r"All topics are updated as new evidence becomes available and our peer review process is complete", re.IGNORECASE),
     re.compile(r"This topic last updated: (?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2}, \d{4}\.", re.IGNORECASE),
@@ -67,6 +61,7 @@ def remove_undesired_patterns(text):
     1. Lines containing "Copyright ©" followed by digits,
         the line immediately before, and the line immediately after.
     2. The word "uptodate" and its variations (case-insensitive).
+    3. **NEW:** Specific patterns from the extracted text string.
     This is a text-level cleanup, applied after extraction.
     """
     lines = text.split('\n')
@@ -74,16 +69,27 @@ def remove_undesired_patterns(text):
     i = 0
     while i < len(lines):
         line = lines[i]
+
         # Regex to find "Copyright ©" followed by digits (year)
         if re.search(r"Copyright ©\s*\d{4}", line, re.IGNORECASE):
             # Check if the previous line exists and is the same as the last appended line, then remove it
             if output_lines and i > 0 and (i - 1 < len(lines) and lines[i-1] == output_lines[-1]):
                 output_lines.pop()
             i += 2 # Skip current line (copyright) and the one after
-        else:
-            # Remove "uptodate" and its variations (case-insensitive)
-            cleaned_line = re.sub(r'\b[Uu][Pp][Tt][Oo][Dd][Aa][Tt][Ee]\b', '', line)
-            output_lines.append(cleaned_line)
+            continue # Move to next line in original input
+
+        # Remove "uptodate" and its variations (case-insensitive)
+        cleaned_line = re.sub(r'\b[Uu][Pp][Tt][Oo][Dd][Aa][Tt][Ee]\b', '', line, flags=re.IGNORECASE)
+
+        # --- NEW ADDITIONS: Remove specific patterns from the cleaned_line ---
+        # Using re.sub for each pattern
+        cleaned_line = re.sub(r'2025© UpToDate, Inc\. and its affiliates and/or licensors\. All Rights Reserved', '', cleaned_line, flags=re.IGNORECASE)
+        cleaned_line = re.sub(r'Contributor Disclosures', '', cleaned_line, flags=re.IGNORECASE)
+        cleaned_line = re.sub(r'For abbreviations, symbols, and age group definitions', '', cleaned_line, flags=re.IGNORECASE)
+        cleaned_line = re.sub(r'show table', '', cleaned_line, flags=re.IGNORECASE)
+        # -------------------------------------------------------------------
+
+        output_lines.append(cleaned_line)
         i += 1
     return "\n".join(output_lines)
 
@@ -243,4 +249,3 @@ def extract_text_from_pdf(pdf_path: str) -> str:
         traceback.print_exc() # Use traceback.print_exc() for full stack trace
         return ""
     return text
-
